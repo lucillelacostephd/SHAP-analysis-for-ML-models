@@ -18,6 +18,7 @@ import numpy as np
 from sklearn import metrics
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import make_scorer, r2_score, mean_squared_error, mean_absolute_error
+from scipy import stats
 
 # Load the dataset
 data = pd.read_excel(r'C:\Users\LB945465\OneDrive - University at Albany - SUNY\State University of New York\Spyder\SHAP\Merged Ozone and PMF.xlsx')
@@ -37,7 +38,7 @@ X = data.drop('Ozone', axis=1)
 y = data['Ozone']
 
 # Split the data
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, shuffle=True)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=42, shuffle=True) # test size 0.25
 
 # Initialize and train the model
 #model = RandomForestRegressor(random_state=42) # Test Score  66.329 R^2 Score 0.6633
@@ -48,26 +49,9 @@ model.fit(X_train, y_train)
 
 # Initialize SHAP Explainer and calculate SHAP values
 explainer = shap.TreeExplainer(model)
-shap_values = explainer.shap_values(X_train)
+shap_values = explainer.shap_values(X_test)
 
-shap_explanation = explainer(X_train)
-
-# Set the default DPI for all plots
-plt.rcParams['figure.dpi'] = 200
-
-# List of features to display in the plot
-features_to_display = ['Fuel evaporation', 'Combustion', 'Natural gas', 
-                       "Diesel traffic", "Industrial solvents", "Gasoline traffic", 
-                       "Biogenic"] 
-
-# Filter the SHAP values to include only the selected features
-filtered_shap_values = shap_explanation[:, features_to_display]
-
-# Plots 
-shap.plots.bar(filtered_shap_values)
-shap.plots.beeswarm(filtered_shap_values, show=True)
-shap.plots.waterfall(filtered_shap_values[0], show=True)
-
+shap_explanation = explainer(X_test)
 predict = model.predict(X_test)
 
 #Statistical metrics and performance evaluation
@@ -84,7 +68,26 @@ mape = 100 * (errors / y_test)
 accuracy = 100 - np.mean(mape)
 print('Accuracy', round(accuracy, 3)) # Take note that this is percentage
 
-##### Additional plots
+
+##### SHAP plots
+# Set the default DPI for all plots
+plt.rcParams['figure.dpi'] = 200
+
+# List of features to display in the plot
+features_to_display = ['Fuel evaporation', 'Combustion', 'Natural gas', 
+                       "Diesel traffic", "Industrial solvents", "Gasoline traffic", 
+                       "Biogenic"] 
+
+# Filter the SHAP values to include only the selected features
+filtered_shap_values = shap_explanation[:, features_to_display]
+
+# Plots 
+shap.plots.bar(filtered_shap_values)
+
+plt.savefig('Shap_barplot.png', bbox_inches='tight')
+plt.show() 
+
+##### Training vs test sets plots
 
 plt.figure(figsize=(5, 5))
 a=plt.scatter(y=predict, x=y_test, 
@@ -111,6 +114,10 @@ a=plt.annotate(
     horizontalalignment='left', verticalalignment='top'
 )
 
+# Save the figure
+plt.savefig('Test_plot.png', transparent=True, bbox_inches='tight')
+plt.show()
+
 plt.figure(figsize=(5, 5))
 predict_train = model.predict(X_train)
 b=plt.scatter(y=predict_train, x=y_train, 
@@ -135,3 +142,63 @@ b=plt.annotate("Train set:" +
                 xy=(0.05, 0.95), xycoords='axes fraction', 
                 horizontalalignment='left', verticalalignment='top'
 )
+
+# Save the figure
+plt.savefig('Train_plot.png', transparent=True, bbox_inches='tight')
+plt.show()
+
+##### Ozone observed vs measured plots
+# Generate predictions for the test set
+y_pred = model.predict(X_test)
+
+# Create a DataFrame for comparison
+comparison_df = pd.DataFrame({'Actual': y_test, 'Predicted': y_pred}, index=y_test.index)
+
+# Resample to yearly frequency and compute means and SEM
+yearly_stats = comparison_df.resample('Y').agg(['mean', 'sem'])
+yearly_stats.columns = ['_'.join(col) for col in yearly_stats.columns]
+
+# Calculate the t-critical value for 95% confidence interval
+confidence_level = 0.95
+degrees_freedom = yearly_stats.shape[0] - 1
+t_critical = stats.t.ppf((1 + confidence_level) / 2, df=degrees_freedom)
+
+# Calculate the margin of error (error bars length)
+yearly_stats['Actual_mean_error'] = yearly_stats['Actual_sem'] * t_critical
+yearly_stats['Predicted_mean_error'] = yearly_stats['Predicted_sem'] * t_critical
+
+# Plotting the bar graph
+fig, ax = plt.subplots(figsize=(15, 4))
+
+# Width of a bar
+width = 0.35
+
+# Positions of the left bar-boundaries
+bar_l = np.arange(1, len(yearly_stats) + 1)
+
+# Positions of the x-axis ticks (center of the bars as bar labels)
+tick_pos = [i + width / 2 for i in bar_l]
+
+# Create the bar plot
+ax.bar(bar_l, yearly_stats['Actual_mean'], width=width, label='Observed', yerr=yearly_stats['Actual_mean_error'], capsize=5)
+ax.bar(bar_l + width, yearly_stats['Predicted_mean'], width=width, label='Predicted', yerr=yearly_stats['Predicted_mean_error'], capsize=5)
+
+# Set the x ticks with names
+plt.xticks(tick_pos, yearly_stats.index.year)
+
+# Set the labels and title
+plt.ylabel('Ozone concentration (ppbv)', fontweight="bold")
+plt.xlabel('')
+#plt.title('Yearly Comparison of Actual vs. Predicted with Confidence Intervals')
+plt.legend()
+
+# Set a buffer around the edge with increased space
+buffer_space = width * 2  # You can adjust the multiplier to increase or decrease the space
+plt.xlim([min(tick_pos) - buffer_space, max(tick_pos) + buffer_space])
+
+# Set ylim
+plt.ylim(0, 50)
+
+# Save the figure
+plt.savefig('Ozone_plot.png', transparent=True, bbox_inches='tight')
+plt.show()
