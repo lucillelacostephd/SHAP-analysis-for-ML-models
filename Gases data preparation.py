@@ -6,6 +6,9 @@ Created on Fri Jan 19 10:41:26 2024
 """
 
 import pandas as pd
+from sklearn.preprocessing import StandardScaler
+import numpy as np
+from sklearn.impute import SimpleImputer
 
 # Load the datasets
 file_path = r'C:\Users\LB945465\OneDrive - University at Albany - SUNY\State University of New York\Spyder\SHAP\O3_NOy_NOx.xlsx'
@@ -23,15 +26,29 @@ VC = pd.read_excel(r"C:\Users\LB945465\OneDrive - University at Albany - SUNY\St
 # Reindex VC to match the index of OCDN
 PMF = PMF.divide(VC['VC_ratio'], axis=0)
 
-# Handling negative values - Example: Setting them to zero
-# Adjust this according to your data's context
-PMF[PMF < 0] = 0
+# Replace negative values and zeroes with NaN
+PMF = PMF.clip(lower=np.nextafter(0, 1))  # Set any value <= 0 to the smallest positive float
 
-# Recalculate row sums
-row_sums = PMF.sum(axis=1)
+# Assuming your DataFrame is named PMF
+scaler = StandardScaler()
 
-# Normalize each value by its row sum
-normalized_PMF = PMF.div(row_sums, axis=0)
+# Standardize the dataframe
+PMF_standardized = scaler.fit_transform(PMF)
+
+# Convert the array back to a pandas DataFrame
+PMF_standardized = pd.DataFrame(PMF_standardized, columns=PMF.columns, index=PMF.index)
+
+# # Handling negative values - Example: Setting them to nan
+# PMF[PMF < 0] = pd.NA
+
+# PMF.dropna(inplace=True)
+
+# # The rest of your code for normalization
+# # Recalculate row sums
+# row_sums = PMF.sum(axis=1)
+
+# # Normalize each value by its row sum
+# normalized_PMF = PMF.div(row_sums, axis=0)
 
 # Function to read specific columns from a worksheet
 def read_specific_columns(sheet_name, columns, file_path):
@@ -71,8 +88,10 @@ noy_data = process_parameter_data('Reactive oxides of nitrogen (NOy)', file_path
 
 ozone_data = ozone_data[ozone_data != 0]
 ozone_data=ozone_data*1000
+ozone_data.dropna(inplace=True)
 
 # Merge the two dataframes on the 'Date' column
-merged_df = pd.merge(ozone_data, normalized_PMF, on='Date', how='inner')
+merged_df = pd.merge(PMF_standardized, ozone_data, left_index=True, right_index=True, how='inner')
+merged_df.dropna(inplace=True)
 
 merged_df.to_excel("Merged Ozone and PMF.xlsx")

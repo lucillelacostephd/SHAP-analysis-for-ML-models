@@ -73,8 +73,29 @@ PMF = pd.read_excel(Base_results_path,
                       index_col="Date",
                       parse_dates=["Date"])
 
+VC = pd.read_excel(r"C:\Users\LB945465\OneDrive - University at Albany - SUNY\State University of New York\Spyder\ICDN-PMF Article\VC_clean.xlsx",
+                   index_col="Date"
+                   )
+
+# Reindex VC to match the index of OCDN
+PMF = PMF.divide(VC['VC_ratio'], axis=0)
+
 # Calculate the sum of each row
 row_sums = PMF.sum(axis=1)
+
+# Normalize each value by its row sum
+normalized_PMF = PMF.div(row_sums, axis=0)
+
+# Handling negative values - Example: Setting them to zero
+# Adjust this according to your data's context
+PMF[PMF < 0] = 0
+
+# Recalculate row sums
+row_sums = PMF.sum(axis=1)
+
+# Remove rows where the sum is zero to avoid division by zero
+PMF = PMF[row_sums != 0]
+row_sums = row_sums[row_sums != 0]
 
 # Normalize each value by its row sum
 normalized_PMF = PMF.div(row_sums, axis=0)
@@ -83,6 +104,7 @@ ozone_df = pd.read_csv(Ozone_path,
                       index_col="Date",
                       parse_dates=["Date"])
 
+ozone_df = ozone_df[ozone_df != 0]
 ozone_df=ozone_df*1000
 
 # Merge the two dataframes on the 'Date' column
