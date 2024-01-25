@@ -19,9 +19,12 @@ from sklearn import metrics
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import make_scorer, r2_score, mean_squared_error, mean_absolute_error
 from scipy import stats
+import seaborn as sns
+import scipy
+import xgboost
 
 # Load the dataset
-data = pd.read_excel(r'C:\Users\LB945465\OneDrive - University at Albany - SUNY\State University of New York\Spyder\SHAP\Merged Ozone and PMF.xlsx')
+data = pd.read_excel(r'C:\Users\LB945465\OneDrive - University at Albany - SUNY\State University of New York\Spyder\SHAP\Merged Ozone and NO and PMF.xlsx')
 
 data.dropna(inplace = True)
 
@@ -38,7 +41,7 @@ X = data.drop('Ozone', axis=1)
 y = data['Ozone']
 
 # Split the data
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=42, shuffle=True) # test size 0.25
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42, shuffle=True) # test size 0.25
 
 # Initialize and train the model
 #model = RandomForestRegressor(random_state=42) # Test Score  66.329 R^2 Score 0.6633
@@ -54,6 +57,16 @@ shap_values = explainer.shap_values(X_test)
 shap_explanation = explainer(X_test)
 predict = model.predict(X_test)
 
+# Compute SHAP values for X_train and X_test
+shap_values_train = explainer.shap_values(X_train)
+shap_values_test = explainer.shap_values(X_test)
+
+# Convert SHAP values to DataFrames
+# Assuming shap_values_train and shap_values_test are arrays
+shap_values_train_df = pd.DataFrame(shap_values_train, columns=X_train.columns, index=X_train.index)
+shap_values_test_df = pd.DataFrame(shap_values_test, columns=X_test.columns, index=X_test.index)
+combined_shap_values_df = pd.concat([shap_values_train_df, shap_values_test_df])
+
 #Statistical metrics and performance evaluation
 #print("Out-of-bag score", round(model.oob_score_, 4)) #Use this if oob_score=True
 print('Importances', model.feature_importances_)
@@ -68,24 +81,52 @@ mape = 100 * (errors / y_test)
 accuracy = 100 - np.mean(mape)
 print('Accuracy', round(accuracy, 3)) # Take note that this is percentage
 
-
 ##### SHAP plots
 # Set the default DPI for all plots
-plt.rcParams['figure.dpi'] = 200
+plt.rcParams['figure.dpi'] = 200  # Replace 100 with your desired DPI
 
 # List of features to display in the plot
 features_to_display = ['Fuel evaporation', 'Combustion', 'Natural gas', 
                        "Diesel traffic", "Industrial solvents", "Gasoline traffic", 
-                       "Biogenic"] 
+                       "Biogenic",
+                       #'Nitric oxide (NO)',
+                       ] 
+
+# Define the colors for specific column names
+color_mapping = {
+    "Fuel evaporation": "#1f77b4",   # blue
+    "Combustion": "#ff7f0e",   # orange
+    "Natural gas": "#2ca02c",   # green
+    "Diesel traffic": "#d62728",   # red
+    "Industrial solvents": "#9467bd",   # purple
+    "Gasoline traffic": "#8c564b",   # brown
+    "Biogenic": "#e377c2", # pink
+    }
 
 # Filter the SHAP values to include only the selected features
 filtered_shap_values = shap_explanation[:, features_to_display]
 
 # Plots 
-shap.plots.bar(filtered_shap_values)
-
+## The mean absolute SHAP value is a point estimate that represents the average impact of a feature on the model's predictions.
+shap.plots.bar(filtered_shap_values[0])
 plt.savefig('Shap_barplot.png', bbox_inches='tight')
 plt.show() 
+
+shap.plots.beeswarm(shap_explanation[:, features_to_display])
+plt.savefig('Shap_beeswarm.png', bbox_inches='tight')
+plt.show() 
+
+# Additional plots
+shap.plots.waterfall(filtered_shap_values[0])
+
+shap.plots.scatter(
+    filtered_shap_values, ylabel="SHAP value",
+)
+
+# Old skool plots
+# xgboost.plot_importance(model)
+# plt.title("xgboost.plot_importance(model)")
+# plt.show()
 
 ##### Training vs test sets plots
 

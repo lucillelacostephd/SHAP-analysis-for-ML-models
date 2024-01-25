@@ -26,29 +26,31 @@ VC = pd.read_excel(r"C:\Users\LB945465\OneDrive - University at Albany - SUNY\St
 # Reindex VC to match the index of OCDN
 PMF = PMF.divide(VC['VC_ratio'], axis=0)
 
-# Replace negative values and zeroes with NaN
-PMF = PMF.clip(lower=np.nextafter(0, 1))  # Set any value <= 0 to the smallest positive float
+# Calculate the median for each column, ignoring zeros and negative values
+medians = PMF[PMF > 0].median()
 
-# Assuming your DataFrame is named PMF
-scaler = StandardScaler()
+# Define a function to replace non-positive values with the column median
+def replace_with_median(series):
+    return series.mask(series <= 0, medians[series.name])
 
-# Standardize the dataframe
-PMF_standardized = scaler.fit_transform(PMF)
+# Apply this function to each column
+PMF = PMF.apply(replace_with_median)
 
-# Convert the array back to a pandas DataFrame
-PMF_standardized = pd.DataFrame(PMF_standardized, columns=PMF.columns, index=PMF.index)
+# # Assuming your DataFrame is named PMF
+# scaler = StandardScaler()
 
-# # Handling negative values - Example: Setting them to nan
-# PMF[PMF < 0] = pd.NA
+# # Standardize the dataframe
+# PMF_standardized = scaler.fit_transform(PMF)
 
-# PMF.dropna(inplace=True)
+# # Convert the array back to a pandas DataFrame
+# PMF_standardized = pd.DataFrame(PMF_standardized, columns=PMF.columns, index=PMF.index)
 
-# # The rest of your code for normalization
-# # Recalculate row sums
-# row_sums = PMF.sum(axis=1)
+# The rest of your code for normalization
+# Recalculate row sums
+row_sums = PMF.sum(axis=1)
 
-# # Normalize each value by its row sum
-# normalized_PMF = PMF.div(row_sums, axis=0)
+# Normalize each value by its row sum
+normalized_PMF = PMF.div(row_sums, axis=0)
 
 # Function to read specific columns from a worksheet
 def read_specific_columns(sheet_name, columns, file_path):
@@ -90,8 +92,23 @@ ozone_data = ozone_data[ozone_data != 0]
 ozone_data=ozone_data*1000
 ozone_data.dropna(inplace=True)
 
+nitric_oxide_data = nitric_oxide_data[nitric_oxide_data != 0]
+nitric_oxide_data=nitric_oxide_data*1000
+nitric_oxide_data.dropna(inplace=True)
+
+noy_data = noy_data[noy_data != 0]
+noy_data=noy_data*1000
+noy_data.dropna(inplace=True)
+
 # Merge the two dataframes on the 'Date' column
-merged_df = pd.merge(PMF_standardized, ozone_data, left_index=True, right_index=True, how='inner')
+merged_df = pd.merge(normalized_PMF, ozone_data, left_index=True, right_index=True, how='inner')
+
+# Merge the NO dataframe
+merged_df = pd.merge(merged_df, nitric_oxide_data, left_index=True, right_index=True, how='inner')
+
+# # Merge the NO dataframe
+# merged_df = pd.merge(merged_df, noy_data, left_index=True, right_index=True, how='inner')
+
 merged_df.dropna(inplace=True)
 
-merged_df.to_excel("Merged Ozone and PMF.xlsx")
+merged_df.to_excel("Merged Ozone and NO and PMF.xlsx")
