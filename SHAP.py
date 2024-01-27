@@ -22,6 +22,8 @@ from scipy import stats
 import seaborn as sns
 import scipy
 import xgboost
+from scipy.interpolate import griddata
+from matplotlib.ticker import FormatStrFormatter
 
 # Load the dataset
 data = pd.read_excel(r'C:\Users\LB945465\OneDrive - University at Albany - SUNY\State University of New York\Spyder\SHAP\Merged Ozone and NO and PMF.xlsx')
@@ -40,8 +42,17 @@ data.set_index('Date', inplace=True)
 X = data.drop('Ozone', axis=1)
 y = data['Ozone']
 
+# Preparing the scaler
+scaler = StandardScaler()
+
+# Standardize the dataframe
+X_scaled = scaler.fit_transform(X)
+
+# Convert the array back to a pandas DataFrame
+X_scaled = pd.DataFrame(X_scaled, columns=X.columns, index=X.index)
+
 # Split the data
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42, shuffle=True) # test size 0.25
+X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.3, random_state=42, shuffle=True) # test size 0.25
 
 # Initialize and train the model
 #model = RandomForestRegressor(random_state=42) # Test Score  66.329 R^2 Score 0.6633
@@ -107,7 +118,10 @@ color_mapping = {
 filtered_shap_values = shap_explanation[:, features_to_display]
 
 # Plots 
-## The mean absolute SHAP value is a point estimate that represents the average impact of a feature on the model's predictions.
+shap.plots.bar(filtered_shap_values)
+plt.savefig('Shap_barplot_global.png', bbox_inches='tight')
+plt.show() 
+
 shap.plots.bar(filtered_shap_values[0])
 plt.savefig('Shap_barplot.png', bbox_inches='tight')
 plt.show() 
@@ -116,12 +130,12 @@ shap.plots.beeswarm(shap_explanation[:, features_to_display])
 plt.savefig('Shap_beeswarm.png', bbox_inches='tight')
 plt.show() 
 
-# Additional plots
-shap.plots.waterfall(filtered_shap_values[0])
+# # Additional plots
+# shap.plots.waterfall(filtered_shap_values[0])
 
-shap.plots.scatter(
-    filtered_shap_values, ylabel="SHAP value",
-)
+# shap.plots.scatter(
+#     filtered_shap_values, ylabel="SHAP value",
+# )
 
 # Old skool plots
 # xgboost.plot_importance(model)
@@ -179,7 +193,7 @@ b=plt.annotate("Train set:" +
                 "\n" + 
                 "r-squared = {:.2f}".format(r2_score(y_train, predict_train)) + 
                 "\n" + 
-                "RMSE = {:.2f}".format(np.sqrt(mean_squared_error(y_train, y_train))), 
+                "RMSE = {:.2f}".format(np.sqrt(mean_squared_error(y_train, predict_train))), 
                 xy=(0.05, 0.95), xycoords='axes fraction', 
                 horizontalalignment='left', verticalalignment='top'
 )
@@ -243,3 +257,125 @@ plt.ylim(0, 50)
 # Save the figure
 plt.savefig('Ozone_plot.png', transparent=True, bbox_inches='tight')
 plt.show()
+
+##### Contour plots with Ozone
+# Make sure 'X' is a DataFrame and has the expected columns
+assert isinstance(X_scaled, pd.DataFrame), "X must be a pandas DataFrame."
+assert all(feature in X_scaled.columns for feature in features_to_display), "All features must be columns in X."
+
+# Compute the mean of the features
+mean_feature_values = X_scaled.mean()
+
+# Define the number of bins for the features and the predicted Ozone
+num_feature_bins = 7
+num_ozone_bins = 7
+
+# Function to bin the features and predict Ozone
+def predict_and_bin_features(feature_x_name, feature_y_name, model, scaler, mean_feature_values):
+    # Calculate the bins for each feature
+    x_bins = np.linspace(X[feature_x_name].min(), X[feature_x_name].max(), num_feature_bins)
+    y_bins = np.linspace(X[feature_y_name].min(), X[feature_y_name].max(), num_feature_bins)
+    
+    # Create a grid for the binned features
+    grid_x, grid_y = np.meshgrid(x_bins, y_bins)
+    
+    # Initialize an array to store the predictions
+    Z_predicted = np.zeros((num_feature_bins, num_feature_bins))
+    
+    # Iterate over the grid and predict Ozone
+    for i in range(num_feature_bins):
+        for j in range(num_feature_bins):
+            # Construct the feature vector for prediction with mean values for other features
+            features = mean_feature_values.copy()
+            features[feature_x_name] = x_bins[i]
+            features[feature_y_name] = y_bins[j]
+            
+            # Scale the features
+            features_scaled = scaler.transform([features])
+            
+            # Predict Ozone and store in Z_predicted
+            Z_predicted[j, i] = model.predict(features_scaled)
+    
+    return grid_x, grid_y, Z_predicted
+
+# Now, generate contour plots for each pair of features
+for i, feature_i in enumerate(features_to_display):
+    for j, feature_j in enumerate(features_to_display):
+        if i >= j:  # Avoid duplicate pairs
+            continue
+        
+        # Bin the features and predict Ozone
+        grid_x, grid_y, Z_predicted = predict_and_bin_features(feature_i, feature_j, model, scaler, mean_feature_values)
+        
+        # Calculate the range of predicted Ozone values and create bins
+        min_ozone = Z_predicted.min()
+        max_ozone = Z_predicted.max()
+        ozone_bins = np.linspace(min_ozone, max_ozone, num_ozone_bins)
+        
+        # Plot the contour using the bins
+        fig, ax = plt.subplots(figsize=(8, 6))
+        contour = ax.contourf(grid_x, grid_y, Z_predicted, levels=ozone_bins, cmap='coolwarm')
+        fig.colorbar(contour, ax=ax, label='Predicted Ozone')
+        
+        ax.set_title(f'Predicted Ozone Levels for {feature_i} vs {feature_j}')
+        ax.set_xlabel(feature_i)
+        ax.set_ylabel(feature_j)
+        
+        # Save the current figure
+        plt.tight_layout()
+        plt.savefig(f'contour_{feature_i}_vs_{feature_j}.png', transparent=True, dpi=200)
+        plt.show()
+
+# Define the number of bins for the features and the predicted Ozone
+num_feature_bins = 7
+num_ozone_bins = 7
+
+# Number of features to display
+num_features = len(features_to_display)
+
+# Create a figure with a grid of subplots
+fig, axes = plt.subplots(nrows=num_features, ncols=num_features, figsize=(20, 15))
+
+# Adjust the spacing of the subplots
+plt.subplots_adjust(left=0.05, right=0.95, bottom=0.05, top=0.95, wspace=0.4, hspace=0.4)
+
+# Formatter for the colorbar ticks to have 1 decimal place
+formatter = FormatStrFormatter('%.0f')
+
+# Loop over the features and create contour plots for each pair
+for i, feature_i in enumerate(features_to_display):
+    for j, feature_j in enumerate(features_to_display):
+        ax = axes[i, j]
+
+        # Hide the upper triangle and the diagonal plots
+        if i >= j:
+            ax.set_visible(False)
+            continue
+
+        # Bin the features and predict Ozone
+        grid_x, grid_y, Z_predicted = predict_and_bin_features(feature_i, feature_j, model, scaler, mean_feature_values)
+        
+        # Calculate the range of predicted Ozone values and create bins
+        min_ozone = Z_predicted.min()
+        max_ozone = Z_predicted.max()
+        ozone_bins = np.linspace(min_ozone, max_ozone, num_ozone_bins)
+        
+        # Create the contour plot
+        contour = ax.contourf(grid_x, grid_y, Z_predicted, levels=ozone_bins, cmap='coolwarm')
+        
+        # Create the colorbar and apply the formatter
+        cbar = fig.colorbar(contour, ax=ax, format=formatter)
+        cbar.ax.set_title('')
+        
+        # Set the title and labels
+        # ax.set_title(f'{feature_i} vs {feature_j}')
+        ax.set_xlabel(feature_i)
+        ax.set_ylabel(feature_j)
+  
+# Save the current figure
+plt.tight_layout()
+plt.savefig('Contour_combined.png', transparent=True, dpi=200)
+        
+# Show the plot matrix
+plt.show()
+
