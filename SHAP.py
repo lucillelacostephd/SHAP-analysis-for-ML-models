@@ -9,21 +9,15 @@ SHAP was implemented to deconvolute the results of 3 ML algorithms.
 
 import pandas as pd
 from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.ensemble import ExtraTreesRegressor
 from xgboost import XGBRegressor
 import shap
 import matplotlib.pyplot as plt
 import numpy as np
 from sklearn import metrics
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import make_scorer, r2_score, mean_squared_error, mean_absolute_error
 from scipy import stats
-import seaborn as sns
-import scipy
-import xgboost
-from scipy.interpolate import griddata
 from matplotlib.ticker import FormatStrFormatter
+from sklearn.metrics import make_scorer, r2_score, mean_squared_error, mean_absolute_error
 
 # Load the dataset
 data = pd.read_excel(r'C:\Users\LB945465\OneDrive - University at Albany - SUNY\State University of New York\Spyder\SHAP\Merged Ozone and NO and PMF.xlsx')
@@ -52,7 +46,7 @@ X_scaled = scaler.fit_transform(X)
 X_scaled = pd.DataFrame(X_scaled, columns=X.columns, index=X.index)
 
 # Split the data
-X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.3, random_state=42, shuffle=True) # test size 0.25
+X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.25, random_state=42, shuffle=True) # test size 0.25
 
 # Initialize and train the model
 #model = RandomForestRegressor(random_state=42) # Test Score  66.329 R^2 Score 0.6633
@@ -97,21 +91,25 @@ print('Accuracy', round(accuracy, 3)) # Take note that this is percentage
 plt.rcParams['figure.dpi'] = 200  # Replace 100 with your desired DPI
 
 # List of features to display in the plot
-features_to_display = ['Fuel evaporation', 'Combustion', 'Natural gas', 
-                       "Diesel traffic", "Industrial solvents", "Gasoline traffic", 
-                       "Biogenic",
-                       #'Nitric oxide (NO)',
-                       ] 
+features_to_display = ['Industrial evaporation', 'Biogenic', 'Fuel evaporation',
+       'Polymer production', 'Industrial', 'Vehicle exhaust',
+       'Diesel emissions', 'Gasoline emissions', 
+       #'Nitric oxide (NO)',
+       #'Unix', 'Hour'
+       ]
 
 # Define the colors for specific column names
 color_mapping = {
     "Fuel evaporation": "#1f77b4",   # blue
-    "Combustion": "#ff7f0e",   # orange
-    "Natural gas": "#2ca02c",   # green
-    "Diesel traffic": "#d62728",   # red
-    "Industrial solvents": "#9467bd",   # purple
-    "Gasoline traffic": "#8c564b",   # brown
+    "Diesel emissions": "#ff7f0e",   # orange
+    "Gasoline emissions": "#2ca02c",   # green
+    "Vehicle exhaust": "#d62728",   # red
+    "Polymer production": "#9467bd",   # purple
+    "Industrial": "#8c564b",   # brown
     "Biogenic": "#e377c2", # pink
+    "Industrial evaporation": "#7f7f7f", # gray
+    #"Styrene-rich": "#17becf",  # cyan
+    #"Diethylbenzene-rich": "#9edae5",  # light blue
     }
 
 # Filter the SHAP values to include only the selected features
@@ -119,28 +117,38 @@ filtered_shap_values = shap_explanation[:, features_to_display]
 
 # Plots 
 shap.plots.bar(filtered_shap_values)
-plt.savefig('Shap_barplot_global.png', bbox_inches='tight')
 plt.show() 
+plt.savefig('Shap_barplot_global.png', bbox_inches='tight', dpi=200)
 
-shap.plots.bar(filtered_shap_values[0])
-plt.savefig('Shap_barplot.png', bbox_inches='tight')
-plt.show() 
+# Assuming filtered_shap_values is a SHAP Explanation object
+shap_values_array = filtered_shap_values.values  # Access the values in the Explanation object
+
+# # Find the index of the first instance where all SHAP values are positive
+# positive_shap_index = None
+# for i in range(shap_values_array.shape[0]):
+#     if np.all(shap_values_array[i] > 0):
+#         positive_shap_index = i
+#         break
+
+# # Check if such an instance was found
+# if positive_shap_index is not None:
+#     # Generate the local plot for this instance
+#     shap.plots.bar(filtered_shap_values[positive_shap_index])
+#     plt.show()
+# else:
+#     print("No instance found where all SHAP values are positive.")
+# plt.savefig('Shap_barplot_local.png', bbox_inches='tight')
 
 shap.plots.beeswarm(shap_explanation[:, features_to_display])
-plt.savefig('Shap_beeswarm.png', bbox_inches='tight')
 plt.show() 
+plt.savefig('Shap_beeswarm.png', bbox_inches='tight', dpi=200)
 
-# # Additional plots
-# shap.plots.waterfall(filtered_shap_values[0])
+# Additional plots
+shap.plots.waterfall(filtered_shap_values[0])
 
 # shap.plots.scatter(
 #     filtered_shap_values, ylabel="SHAP value",
 # )
-
-# Old skool plots
-# xgboost.plot_importance(model)
-# plt.title("xgboost.plot_importance(model)")
-# plt.show()
 
 ##### Training vs test sets plots
 
@@ -267,8 +275,11 @@ assert all(feature in X_scaled.columns for feature in features_to_display), "All
 mean_feature_values = X_scaled.mean()
 
 # Define the number of bins for the features and the predicted Ozone
-num_feature_bins = 7
-num_ozone_bins = 7
+num_feature_bins = 8
+num_ozone_bins = 8
+
+# Formatter for the colorbar ticks to have 1 decimal place
+formatter = FormatStrFormatter('%.0f')
 
 # Function to bin the features and predict Ozone
 def predict_and_bin_features(feature_x_name, feature_y_name, model, scaler, mean_feature_values):
@@ -315,7 +326,7 @@ for i, feature_i in enumerate(features_to_display):
         # Plot the contour using the bins
         fig, ax = plt.subplots(figsize=(8, 6))
         contour = ax.contourf(grid_x, grid_y, Z_predicted, levels=ozone_bins, cmap='coolwarm')
-        fig.colorbar(contour, ax=ax, label='Predicted Ozone')
+        fig.colorbar(contour, ax=ax, label='Predicted Ozone', format=formatter)
         
         ax.set_title(f'Predicted Ozone Levels for {feature_i} vs {feature_j}')
         ax.set_xlabel(feature_i)

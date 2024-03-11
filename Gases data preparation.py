@@ -15,7 +15,7 @@ file_path = r'C:\Users\LB945465\OneDrive - University at Albany - SUNY\State Uni
 Base_results_path = r'C:\mydata\Optimal solution\ICDN\Base_results.xlsx'
 
 PMF = pd.read_excel(Base_results_path, 
-                      sheet_name='Contributions_conc',
+                      sheet_name='Contributions_conc_constr',
                       index_col="Date",
                       parse_dates=["Date"])
 
@@ -36,15 +36,6 @@ def replace_with_median(series):
 # Apply this function to each column
 PMF = PMF.apply(replace_with_median)
 
-# # Assuming your DataFrame is named PMF
-# scaler = StandardScaler()
-
-# # Standardize the dataframe
-# PMF_standardized = scaler.fit_transform(PMF)
-
-# # Convert the array back to a pandas DataFrame
-# PMF_standardized = pd.DataFrame(PMF_standardized, columns=PMF.columns, index=PMF.index)
-
 # The rest of your code for normalization
 # Recalculate row sums
 row_sums = PMF.sum(axis=1)
@@ -64,7 +55,7 @@ def process_parameter_data(parameter_name, file_path, columns_to_load):
     parameter_data = pd.DataFrame()
 
     # Process each worksheet and append the data
-    for year in range(2000, 2021):
+    for year in range(2000, 2022):
         year_data = read_specific_columns(str(year), columns_to_load, file_path)
         parameter_data = pd.concat([parameter_data, year_data], ignore_index=True)
 
@@ -86,29 +77,30 @@ def process_parameter_data(parameter_name, file_path, columns_to_load):
 # Apply the function for each parameter
 ozone_data = process_parameter_data('Ozone', file_path, columns_to_load)
 nitric_oxide_data = process_parameter_data('Nitric oxide (NO)', file_path, columns_to_load)
-noy_data = process_parameter_data('Reactive oxides of nitrogen (NOy)', file_path, columns_to_load)
+#noy_data = process_parameter_data('Reactive oxides of nitrogen (NOy)', file_path, columns_to_load)
 
 ozone_data = ozone_data[ozone_data != 0]
 ozone_data=ozone_data*1000
 ozone_data.dropna(inplace=True)
+ozone_data.to_excel("Ozone_data.xlsx")
 
 nitric_oxide_data = nitric_oxide_data[nitric_oxide_data != 0]
 nitric_oxide_data=nitric_oxide_data*1000
 nitric_oxide_data.dropna(inplace=True)
+nitric_oxide_data.to_excel("nitric_oxide_data.xlsx")
 
-noy_data = noy_data[noy_data != 0]
-noy_data=noy_data*1000
-noy_data.dropna(inplace=True)
+# noy_data = noy_data[noy_data != 0]
+# noy_data=noy_data*1000
+# noy_data.dropna(inplace=True)
 
-# Merge the two dataframes on the 'Date' column
+# Merge using normalized PMF source contributions (For SHAP)
 merged_df = pd.merge(normalized_PMF, ozone_data, left_index=True, right_index=True, how='inner')
-
-# Merge the NO dataframe
 merged_df = pd.merge(merged_df, nitric_oxide_data, left_index=True, right_index=True, how='inner')
-
-# # Merge the NO dataframe
-# merged_df = pd.merge(merged_df, noy_data, left_index=True, right_index=True, how='inner')
-
 merged_df.dropna(inplace=True)
-
 merged_df.to_excel("Merged Ozone and NO and PMF.xlsx")
+
+# Merge using PMF source contributions (For other purposes)
+merged_df_PMF = pd.merge(PMF, ozone_data, left_index=True, right_index=True, how='inner')
+merged_df_PMF = pd.merge(merged_df_PMF, nitric_oxide_data, left_index=True, right_index=True, how='inner')
+merged_df_PMF.dropna(inplace=True)
+merged_df_PMF.to_excel("Merged Ozone and NO and PMF_for correl plot.xlsx")
