@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on Fri Jan 12 14:19:49 2024
-This script is to using Random Forest to predict O3 concentration 
+This script is to use  ML techniques to predict O3 concentration 
 from PMF-resolved VOC sources in Bronx, NYC. 
 SHAP was implemented to deconvolute the results of 3 ML algorithms.
 @author: lb945465
