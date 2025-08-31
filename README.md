@@ -1,4 +1,4 @@
-# SHAP Analysis for Machine Learning Models on Ozone
+# Explaining Ozone Concentrations: XGBoost + SHAP Workflow
 
 This repository contains the scripts and data used in my study:
 
