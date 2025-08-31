@@ -90,5 +90,5 @@ Data in this repo is simplified for demonstration; replicate with caution.
 
 If you use this code or workflow, please cite:
 
-Borlaza-Lacoste, L. et al. (2024). Long-term contributions of VOC sources and their link to ozone pollution in Bronx, New York City. Environment International.
+Borlaza-Lacoste, L. et al. (2024). Long-term contributions of VOC sources and their link to ozone pollution in Bronx, New York City. Environment International. https://doi.org/10.1016/j.envint.2024.108993
 
